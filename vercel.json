@@ -1,0 +1,6 @@
+{
+  "outputDirectory": "public",
+  "functions": {
+    "api/obi.js": { "maxDuration": 300 }
+  }
+}

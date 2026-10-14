@@ -1,0 +1,701 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex"><title>Obi Objekt-Checker</title><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fragment+Mono&family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,100..900,0..100,0..1;1,9..144,100..900,0..100,0..1&family=Schibsted+Grotesk:ital,wght@0,400..900;1,400..900&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+/* B&B CI (bub-immo.de): Mehl-Grund, Röst-Tinte, Butter-Akzent, kantige Formen, Fraunces/Schibsted/Fragment Mono.
+   Layout: Prüfblatt links, Gespräch mit Obi rechts; auf dem Handy untereinander. Bewusst nur hell, wie die Website. */
+:root{
+  color-scheme:light;
+  --mehl:#F5F0E6; --mehl-hell:#FAF7F0; --roest:#1B1610; --glut:#2A2117;
+  --butter:#EAB13E; --butter-tief:#D99C1F; --kruste:#96652F; --stein:#A39E94; --stein-dunkel:#7A766D;
+  --tinte-sek:#1B1610A3; --hairline:#1B161024; --hairline-stark:#1B161040; --mehl-sek:#F5F0E6AD;
+  --gruen:#3F7A4A; --gelb:#C9890F; --rot:#B2432F;
+  --f-erz:'Fraunces',Georgia,serif; --f-erk:'Schibsted Grotesk',system-ui,sans-serif; --f-bez:'Fragment Mono',ui-monospace,monospace;
+  --ease-stempel:cubic-bezier(.18,1.4,.4,1);
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--mehl);color:var(--roest);font:clamp(1rem,.95rem + .25vw,1.125rem)/1.6 var(--f-erk);margin:0;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+::selection{background:var(--butter);color:var(--roest)}
+.wrap{max-width:76rem;margin:0 auto;padding:0 clamp(16px,3vw,48px) 56px;display:grid;gap:28px}
+.nav{position:sticky;top:0;z-index:20;display:flex;justify-content:space-between;align-items:center;gap:1rem;padding-block:.75rem;background:color-mix(in srgb,var(--mehl) 88%,transparent);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);box-shadow:0 1px 0 var(--hairline)}
+.nav .marke{display:inline-flex;color:var(--roest)}
+.nav svg{height:clamp(2.1rem,3.6vw,2.75rem);width:auto;color:currentColor;display:block}
+.nav-rechts{display:flex;align-items:center;gap:clamp(.75rem,2.5vw,2rem)}
+.nav-link{font:400 .6875rem/1 var(--f-bez);letter-spacing:.1em;text-transform:uppercase;white-space:nowrap;color:var(--roest);text-decoration:none;opacity:.75;transition:opacity .22s ease}
+.nav-link:hover{opacity:1}
+.btn.nav-cta{padding:.55rem 1.05rem;font-size:.875rem;text-decoration:none;white-space:nowrap}
+@media (max-width:760px){.testmark{display:none}}
+@media (max-width:520px){.nav-link{display:none}}
+@media (max-width:420px){.nav svg{height:1.7rem}.btn.nav-cta{padding:.45rem .65rem;font-size:.72rem}}
+.testmark{font:400 .6875rem/1 var(--f-bez);letter-spacing:.14em;text-transform:uppercase;border:1px dashed var(--tinte-sek);color:var(--tinte-sek);padding:.5rem .7rem}
+.hero{display:grid;gap:14px;padding-block:20px 6px}
+.kicker{display:flex;align-items:center;gap:1rem;font:400 .6875rem/1.2 var(--f-bez);letter-spacing:.14em;text-transform:uppercase;color:var(--tinte-sek);margin:0}
+.kicker::after{content:"";width:3.5rem;height:1px;background:currentColor;opacity:.45}
+.hero h1{font:560 clamp(2.25rem,1.2rem + 4.6vw,5rem)/1.04 var(--f-erz);letter-spacing:-.015em;font-variation-settings:'SOFT' 40,'WONK' 0;margin:0;max-width:20ch;text-wrap:balance}
+.hero h1 em{font-style:italic;font-weight:480;font-variation-settings:'SOFT' 70,'WONK' 0;color:var(--kruste)}
+.lead{font-size:clamp(1.0625rem,1rem + .4vw,1.3rem);max-width:56ch;color:var(--tinte-sek);margin:0}
+.grid{display:grid;grid-template-columns:minmax(0,25rem) minmax(0,1fr);gap:24px;align-items:start}
+@media (max-width:880px){.grid{grid-template-columns:minmax(0,1fr)}}
+.sheet{background:var(--mehl-hell);border:1px solid var(--hairline);min-width:0}
+.panel{padding:22px;display:grid;gap:20px}
+.step{display:grid;gap:6px}
+.label{font:400 .6875rem/1.2 var(--f-bez);letter-spacing:.14em;text-transform:uppercase;color:var(--tinte-sek);margin:0}
+h2{font:560 1.45rem/1.12 var(--f-erz);letter-spacing:-.01em;font-variation-settings:'SOFT' 40,'WONK' 0;margin:0;text-wrap:balance}
+.drop{border:1px dashed var(--hairline-stark);background:var(--mehl);padding:22px 16px;text-align:center;cursor:pointer;transition:border-color .22s,background .22s;display:grid;gap:4px}
+.drop:hover,.drop.over,.drop:focus-visible{border-color:var(--kruste);background:#EAB13E1F;outline:none}
+.drop strong{font-weight:600}
+.drop small{color:var(--tinte-sek);font:400 .75rem/1.4 var(--f-bez);letter-spacing:.06em;text-transform:uppercase}
+.files{display:grid;gap:8px;list-style:none;margin:0;padding:0}
+.files:empty{display:none}
+.files li{display:flex;gap:10px;align-items:center;border:1px solid var(--hairline);background:var(--mehl);padding:8px 10px;min-width:0}
+.files .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.files .st{font:.75rem var(--f-bez);color:var(--tinte-sek);white-space:nowrap}
+.files button{border:0;background:none;color:var(--tinte-sek);cursor:pointer;font-size:18px;line-height:1;padding:2px 4px}
+.files button:hover{color:var(--rot)}
+.fields{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.field{display:grid;gap:5px;min-width:0;align-content:start}
+.field label{font-size:.875rem;font-weight:600}
+.field small{font:400 .6875rem/1.3 var(--f-bez);letter-spacing:.04em;color:var(--tinte-sek)}
+input,textarea{font:inherit;color:var(--roest);background:var(--mehl);border:1px solid var(--hairline-stark);border-radius:0;padding:10px 11px;width:100%}
+input::placeholder,textarea::placeholder{color:var(--stein)}
+input:focus,textarea:focus{outline:2px solid var(--butter);outline-offset:1px;border-color:var(--roest)}
+textarea{resize:vertical;min-height:72px}
+.opt{border-top:1px solid var(--hairline);padding-top:14px}
+.opt summary{cursor:pointer;font-weight:600;list-style:none;display:flex;justify-content:space-between;gap:8px}
+.opt summary::-webkit-details-marker{display:none}
+.opt summary::after{content:"+";font:400 1.1rem/1 var(--f-bez)}
+.opt[open] summary::after{content:"−"}
+.opt summary span{font:400 .6875rem/1.6 var(--f-bez);letter-spacing:.14em;text-transform:uppercase;color:var(--tinte-sek);margin-left:auto}
+.opt summary:focus-visible{outline:2px solid var(--roest);outline-offset:3px}
+.opt[open] .fields{margin-top:12px}
+.opt .note{margin-top:8px}
+.areas{display:flex;flex-wrap:wrap;gap:6px}
+.areas span{font:400 .6875rem/1 var(--f-bez);letter-spacing:.08em;text-transform:uppercase;border:1px solid var(--hairline);padding:7px 8px;color:var(--tinte-sek)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.6rem;font:600 1rem/1.2 var(--f-erk);padding:.95rem 1.6rem;cursor:pointer;border:1px solid var(--hairline-stark);background:var(--butter);color:var(--roest);border-radius:0;transition:background .22s ease,transform .22s var(--ease-stempel)}
+.btn:hover:not(:disabled){background:var(--butter-tief)}
+.btn:active:not(:disabled){transform:scale(.985)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.ghost{background:transparent;border-color:var(--roest)}
+.btn.ghost:hover:not(:disabled){background:var(--roest);color:var(--mehl)}
+.btn:focus-visible{outline:2px solid var(--roest);outline-offset:3px}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.row .btn{flex:1 1 10rem}
+.chat{display:flex;flex-direction:column;min-height:640px}
+.chat-head{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:16px 22px;background:var(--roest);color:var(--mehl);flex-wrap:wrap}
+.chat-head h2{color:var(--mehl)}
+.chat-head .label{color:var(--mehl-sek)}
+.verdict{font:400 .8125rem/1 var(--f-bez);letter-spacing:.14em;text-transform:uppercase;padding:.5rem .8rem;display:inline-flex;gap:.6rem;align-items:center;border:1px dashed var(--mehl-sek);color:var(--mehl-sek)}
+.verdict i{width:10px;height:10px;border-radius:50%;background:currentColor;display:inline-block}
+.verdict.gruen,.verdict.gelb,.verdict.rot,.verdict.grau{border:0;color:var(--mehl);transform:rotate(-3.5deg);box-shadow:0 1px #0000004d;animation:stempel .48s var(--ease-stempel)}
+.verdict.gruen{background:var(--gruen)}.verdict.gelb{background:var(--butter);color:var(--roest)}.verdict.rot{background:var(--rot)}.verdict.grau{background:var(--stein-dunkel)}
+@keyframes stempel{from{transform:rotate(-3.5deg) scale(1.6);opacity:0}to{transform:rotate(-3.5deg) scale(1);opacity:1}}
+.log{flex:1;padding:24px 22px;display:flex;flex-direction:column;gap:18px;overflow-y:auto;max-height:72vh;background:var(--mehl-hell)}
+.msg{max-width:100%;min-width:0}
+.msg.user{align-self:flex-end;background:var(--mehl);border:1px solid var(--hairline);padding:10px 14px;max-width:85%;white-space:pre-wrap}
+.msg.obi .who{font:400 .6875rem/1 var(--f-bez);letter-spacing:.14em;text-transform:uppercase;color:var(--kruste);margin-bottom:8px}
+.md{overflow-wrap:anywhere}
+.md h1,.md h2,.md h3{font-family:var(--f-erz);font-weight:560;font-variation-settings:'SOFT' 40,'WONK' 0;letter-spacing:-.01em;line-height:1.15;margin:20px 0 6px}
+.md h1{font-size:1.5rem}.md h2{font-size:1.3rem}.md h3{font-size:1.1rem}
+.md p{margin:8px 0}.md ul,.md ol{margin:8px 0;padding-left:22px}.md li{margin:3px 0}
+.md .tbl{overflow-x:auto;margin:12px 0}
+.md table{border-collapse:collapse;font-size:.9rem;font-variant-numeric:tabular-nums;min-width:100%}
+.md th,.md td{border-bottom:1px solid var(--hairline);padding:7px 10px;text-align:left;vertical-align:top}
+.md th{font:400 .6875rem var(--f-bez);letter-spacing:.1em;text-transform:uppercase;color:var(--tinte-sek)}
+.md strong{font-weight:700}
+.md hr{border:0;border-top:1px solid var(--hairline);margin:18px 0}
+.md code{font:.8125rem var(--f-bez);background:var(--mehl);padding:1px 4px}
+.thinking{color:var(--tinte-sek);font-style:italic}
+.thinking::after{content:"";display:inline-block;width:1.2em;text-align:left;animation:dots 1.4s steps(4) infinite}
+@keyframes dots{0%{content:""}25%{content:"."}50%{content:".."}75%{content:"..."}}
+@media (prefers-reduced-motion:reduce){.thinking::after{animation:none;content:"..."}.verdict{animation:none!important}}
+.empty{margin:auto;max-width:42ch;text-align:center;color:var(--tinte-sek);display:grid;gap:12px;padding:36px 0}
+.empty b{color:var(--roest);font:560 1.5rem/1.15 var(--f-erz);font-variation-settings:'SOFT' 40,'WONK' 0;letter-spacing:-.01em}
+.composer{border-top:1px solid var(--hairline);padding:14px 22px;display:flex;gap:10px;align-items:flex-end;background:var(--mehl-hell);flex-wrap:wrap}
+.composer textarea{min-height:72px;flex:1 1 14rem}
+.note{font-size:.875rem;color:var(--tinte-sek);margin:0}
+.note:empty{display:none}
+.note.err{color:var(--rot)}
+.foot{font:400 .75rem/1.6 var(--f-bez);letter-spacing:.02em;color:var(--tinte-sek);max-width:90ch;border-top:1px solid var(--hairline);padding-top:16px;margin:0}
+.searches{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.searches:empty{display:none}
+.searches span{font:400 .6875rem/1.3 var(--f-bez);letter-spacing:.04em;color:var(--tinte-sek);border:1px dashed var(--hairline-stark);padding:4px 7px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sources:empty{display:none}
+.sources{border-top:1px solid var(--hairline);margin-top:14px;padding-top:10px;display:grid;gap:6px}
+.sources ul{margin:0;padding-left:18px;font-size:.875rem}
+.sources li{margin:2px 0;overflow-wrap:anywhere}
+.sources small{color:var(--tinte-sek);font:.75rem var(--f-bez)}
+.md a,.sources a{color:var(--kruste)}
+.md details.mehr{margin:20px 0 12px}
+.md details.mehr>summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;background:var(--mehl);border:1px solid var(--hairline-stark);transition:background .22s ease}
+.md details.mehr>summary:hover{background:#EAB13E1F}
+.md details.mehr>summary::-webkit-details-marker{display:none}
+.md details.mehr>summary b{font:560 1.1rem/1.2 var(--f-erz);font-variation-settings:'SOFT' 40,'WONK' 0}
+.md details.mehr>summary span{font:400 .6875rem/1.4 var(--f-bez);letter-spacing:.12em;text-transform:uppercase;color:var(--kruste)}
+.md details.mehr>summary .auf,.md details.mehr[open]>summary .zu{display:none}
+.md details.mehr[open]>summary .auf{display:inline}
+.md details.mehr[open]>summary{margin-bottom:6px}
+.md details.mehr>summary:focus-visible{outline:2px solid var(--roest);outline-offset:3px}
+.fuss{background:var(--roest);color:var(--mehl);padding:clamp(3rem,6vw,5rem) clamp(16px,3vw,48px) 2rem}
+.fuss-shell{max-width:calc(76rem - 2 * clamp(16px,3vw,48px));margin:0 auto;display:grid}
+.fuss-oben{display:flex;justify-content:space-between;align-items:center;gap:1.5rem clamp(1.5rem,4vw,3rem);padding-bottom:clamp(2rem,4vw,3rem);border-bottom:1px solid var(--hairline-invers);flex-wrap:wrap}
+.fuss-oben svg{height:clamp(2.6rem,4vw,3.75rem);width:auto;color:var(--mehl);display:block}
+.fuss-menue{display:flex;gap:1rem clamp(1.5rem,4vw,3.5rem);flex-wrap:wrap}
+.fuss a{color:var(--mehl);text-decoration:none;opacity:.85;border-bottom:1px solid transparent;transition:opacity .22s ease,border-color .22s ease}
+.fuss a:hover{opacity:1;border-bottom-color:var(--butter)}
+.fuss-unten{display:flex;justify-content:space-between;align-items:center;gap:1rem 2rem;flex-wrap:wrap;padding-top:1.5rem;color:var(--mehl-sek);font:400 .6875rem/1.4 var(--f-bez);letter-spacing:.14em;text-transform:uppercase}
+.fuss-rechtliches{display:flex;gap:2rem;font:400 .9rem var(--f-erk);letter-spacing:0;text-transform:none}
+@media (max-width:640px){.fuss-oben,.fuss-unten{flex-direction:column;align-items:center;text-align:center}.fuss-menue{justify-content:center}}
+/* Eingebettet auf bub-immo.de (?embed=1): Kopf und Fuß der Website übernehmen das. */
+html[data-embed] .nav,html[data-embed] .fuss{display:none}
+.beratung{margin-top:20px;padding:18px 20px;background:var(--mehl);border:1px solid var(--hairline);border-left:2px solid var(--butter);display:flex;flex-wrap:wrap;gap:14px 24px;align-items:center;justify-content:space-between}
+.beratung div{display:grid;gap:4px;min-width:0;flex:1 1 16rem}
+.beratung b{font:560 1.15rem/1.2 var(--f-erz);font-variation-settings:'SOFT' 40,'WONK' 0;letter-spacing:-.01em}
+.beratung .btn{text-decoration:none}
+</style>
+<div class="wrap">
+  <nav class="nav" aria-label="Hauptnavigation">
+    <a class="marke" href="https://bub-immo.de/" aria-label="Zur Startseite von Brot &amp; Butter Immobilien"><svg xmlns="http://www.w3.org/2000/svg" viewBox="85.00 194.00 317.03 81.50" role="img" aria-label="Brot &amp; Butter Immobilien"><path class="logo-b-grau" fill="#A6A6A6" d="M112.854 274L86.500 274L86.500 195.500L112.405 195.500Q117.507 195.500 121.713 197.995Q125.918 200.490 128.413 204.696Q130.909 208.901 130.909 214.004Q130.909 219.442 128.077 223.844Q125.245 228.246 120.704 230.545Q127.096 232.956 131.189 238.647Q135.282 244.338 135.282 251.571Q135.282 257.739 132.254 262.842Q129.226 267.944 124.152 270.972Q119.078 274 112.854 274M89.864 198.864L89.864 229.143L112.405 229.143Q116.554 229.143 119.975 227.124Q123.395 225.106 125.470 221.685Q127.544 218.265 127.544 214.004Q127.544 209.798 125.526 206.378Q123.507 202.957 120.059 200.911Q116.610 198.864 112.405 198.864L89.864 198.864M89.864 232.507L89.864 270.636L112.854 270.636Q117.956 270.636 122.302 268.141Q126.647 265.645 129.282 261.328Q131.918 257.010 131.918 251.571Q131.918 246.132 129.282 241.815Q126.647 237.498 122.330 235.002Q118.012 232.507 112.854 232.507"></path><path fill="currentColor" d="M145.854 274L119.500 274L119.500 195.500L145.405 195.500Q150.507 195.500 154.713 197.995Q158.918 200.490 161.413 204.696Q163.909 208.901 163.909 214.004Q163.909 219.442 161.077 223.844Q158.245 228.246 153.704 230.545Q160.096 232.956 164.189 238.647Q168.282 244.338 168.282 251.571Q168.282 257.739 165.254 262.842Q162.226 267.944 157.152 270.972Q152.077 274 145.854 274M122.864 198.864L122.864 229.143L145.405 229.143Q149.554 229.143 152.975 227.124Q156.395 225.106 158.470 221.685Q160.544 218.265 160.544 214.004Q160.544 209.798 158.526 206.378Q156.507 202.957 153.059 200.911Q149.610 198.864 145.405 198.864L122.864 198.864M122.864 232.507L122.864 270.636L145.854 270.636Q150.956 270.636 155.302 268.141Q159.647 265.645 162.282 261.328Q164.918 257.010 164.918 251.571Q164.918 246.132 162.282 241.815Q159.647 237.498 155.330 235.002Q151.012 232.507 145.854 232.507M190.883 231.500L181.500 231.500L181.500 204.800L190.692 204.800Q192.428 204.800 193.858 205.649Q195.289 206.497 196.137 207.928Q196.986 209.358 196.986 211.094Q196.986 212.924 196.023 214.431Q195.060 215.938 193.534 216.720Q195.708 217.521 197.110 219.466Q198.512 221.411 198.512 223.871Q198.512 225.969 197.482 227.705Q196.452 229.440 194.716 230.470Q192.981 231.500 190.883 231.500M183.369 206.516L183.369 216.014L190.445 216.014Q191.741 216.014 192.809 215.385Q193.877 214.755 194.526 213.678Q195.174 212.600 195.174 211.284Q195.174 209.968 194.545 208.891Q193.916 207.813 192.838 207.165Q191.760 206.516 190.445 206.516L183.369 206.516M183.369 217.730L183.369 229.784L190.731 229.784Q192.333 229.784 193.706 228.992Q195.079 228.201 195.908 226.837Q196.738 225.473 196.738 223.757Q196.738 222.041 195.908 220.677Q195.079 219.313 193.715 218.522Q192.352 217.730 190.731 217.730M207.695 230.500L205.826 230.500L205.826 211.429L207.695 211.429L207.695 214.423Q208.744 212.821 210.460 211.858Q212.177 210.895 214.217 210.895Q215.342 210.895 216.353 211.181L215.590 213.012Q214.808 212.783 213.969 212.783Q212.234 212.783 210.813 213.631Q209.392 214.480 208.543 215.901Q207.695 217.322 207.695 219.057M226.415 230.996Q223.783 230.996 221.618 229.642Q219.453 228.288 218.166 226.009Q216.879 223.730 216.879 220.964Q216.879 218.180 218.166 215.891Q219.453 213.603 221.618 212.249Q223.783 210.895 226.415 210.895Q229.046 210.895 231.211 212.249Q233.376 213.603 234.663 215.891Q235.950 218.180 235.950 220.964Q235.950 223.730 234.663 226.009Q233.376 228.288 231.211 229.642Q229.046 230.996 226.415 230.996M226.415 229.127Q228.570 229.127 230.305 227.992Q232.041 226.857 233.061 225.007Q234.081 223.157 234.081 220.964Q234.081 218.752 233.061 216.893Q232.041 215.033 230.305 213.898Q228.570 212.764 226.415 212.764Q224.240 212.764 222.505 213.898Q220.769 215.033 219.759 216.893Q218.748 218.752 218.748 220.964Q218.748 223.234 219.797 225.084Q220.846 226.934 222.591 228.030Q224.336 229.127 226.415 229.127M245.438 210.929L245.438 212.798L240.536 212.798L240.498 230L238.629 230L238.667 212.798L234.967 212.798L234.967 210.929L238.667 210.929L238.629 204.940L240.498 204.940L240.536 210.929M261.276 231.496Q259.044 231.496 257.347 230.418Q255.650 229.341 254.696 227.605Q253.743 225.870 253.743 223.924Q253.743 222.685 254.010 221.769Q254.277 220.854 254.954 219.939Q255.631 219.023 256.851 217.784Q258.072 216.544 259.960 214.637Q258.434 213.092 257.624 212.215Q256.813 211.337 256.527 210.613Q256.241 209.888 256.241 208.820Q256.241 207.409 256.927 206.255Q257.614 205.101 258.768 204.424Q259.922 203.747 261.276 203.747Q262.668 203.747 263.822 204.424Q264.976 205.101 265.672 206.255Q266.368 207.409 266.368 208.820Q266.368 209.926 266.053 210.670Q265.738 211.414 264.928 212.291Q264.117 213.168 262.630 214.637L270.602 222.609L274.549 218.680L274.549 221.312L271.879 223.982L277.601 229.684L276.285 231L270.602 225.336Q268.675 227.262 267.436 228.473Q266.196 229.684 265.281 230.342Q264.365 231 263.459 231.248Q262.554 231.496 261.276 231.496M261.276 213.473Q262.668 212.100 263.383 211.385Q264.098 210.670 264.346 210.136Q264.594 209.602 264.594 208.801Q264.594 207.409 263.612 206.446Q262.630 205.482 261.276 205.482Q259.864 205.482 258.930 206.493Q257.995 207.504 257.995 208.801Q257.995 209.621 258.262 210.164Q258.529 210.708 259.245 211.423Q259.960 212.138 261.276 213.473M261.276 229.627Q262.344 229.627 263.088 229.398Q263.831 229.169 264.594 228.559Q265.357 227.949 266.444 226.833Q267.531 225.717 269.267 223.963L261.276 215.972Q259.483 217.784 258.367 218.890Q257.252 219.996 256.660 220.759Q256.069 221.522 255.859 222.237Q255.650 222.952 255.650 223.982Q255.650 225.565 256.403 226.842Q257.156 228.120 258.434 228.874Q259.712 229.627 261.276 229.627M297.952 231.500L288.569 231.500L288.569 204.800L297.762 204.800Q299.497 204.800 300.927 205.649Q302.358 206.497 303.206 207.928Q304.055 209.358 304.055 211.094Q304.055 212.924 303.092 214.431Q302.129 215.938 300.603 216.720Q302.777 217.521 304.179 219.466Q305.581 221.411 305.581 223.871Q305.581 225.969 304.551 227.705Q303.521 229.440 301.786 230.470Q300.050 231.500 297.952 231.500M290.438 206.516L290.438 216.014L297.514 216.014Q298.810 216.014 299.878 215.385Q300.946 214.755 301.595 213.678Q302.243 212.600 302.243 211.284Q302.243 209.968 301.614 208.891Q300.985 207.813 299.907 207.165Q298.830 206.516 297.514 206.516L290.438 206.516M290.438 217.730L290.438 229.784L297.800 229.784Q299.402 229.784 300.775 228.992Q302.148 228.201 302.978 226.837Q303.807 225.473 303.807 223.757Q303.807 222.041 302.978 220.677Q302.148 219.313 300.784 218.522Q299.421 217.730 297.800 217.730M308.632 223.600L308.632 211.929L310.501 211.929L310.501 223.333Q310.501 225.069 311.350 226.490Q312.198 227.910 313.619 228.759Q315.040 229.608 316.776 229.608Q318.511 229.608 319.932 228.759Q321.353 227.910 322.201 226.490Q323.050 225.069 323.050 223.333L323.050 211.929L324.919 211.929L324.919 231L323.050 231L323.050 227.968Q322.001 229.570 320.285 230.533Q318.568 231.496 316.528 231.496Q314.353 231.496 312.561 230.428Q310.768 229.360 309.700 227.567Q308.632 225.774 308.632 223.600M337.288 210.929L337.288 212.798L332.387 212.798L332.348 230L330.479 230L330.518 212.798L326.818 212.798L326.818 210.929L330.518 210.929L330.479 204.940L332.348 204.940L332.387 210.929M349.256 210.929L349.256 212.798L344.355 212.798L344.317 230L342.448 230L342.486 212.798L338.786 212.798L338.786 210.929L342.486 210.929L342.448 204.940L344.317 204.940L344.355 210.929M361.061 230.996Q358.430 230.996 356.265 229.642Q354.100 228.288 352.813 226.009Q351.526 223.730 351.526 220.964Q351.526 218.180 352.813 215.891Q354.100 213.603 356.265 212.249Q358.430 210.895 361.061 210.895Q363.846 210.895 366.001 212.287Q368.156 213.679 369.367 216.130Q370.578 218.580 370.540 221.746L353.471 221.746Q353.681 223.863 354.730 225.522Q355.779 227.182 357.428 228.145Q359.078 229.108 361.061 229.127Q363.236 229.127 364.990 227.973Q366.745 226.819 367.794 224.798L369.682 225.236Q368.537 227.773 366.230 229.384Q363.922 230.996 361.061 230.996M353.433 220.125L368.652 220.125Q368.537 218.104 367.498 216.406Q366.459 214.709 364.771 213.679Q363.083 212.649 361.061 212.649Q359.021 212.649 357.362 213.650Q355.702 214.652 354.653 216.349Q353.604 218.046 353.433 220.125M374.842 229.500L372.973 229.500L372.973 210.429L374.842 210.429L374.842 213.423Q375.890 211.821 377.607 210.858Q379.323 209.895 381.364 209.895Q382.489 209.895 383.500 210.181L382.737 212.012Q381.955 211.783 381.116 211.783Q379.381 211.783 377.960 212.631Q376.539 213.480 375.690 214.901Q374.842 216.322 374.842 218.057M185.584 270.500L182.500 270.500L182.500 236.500L185.584 236.500M194.584 269.500L191.500 269.500L191.500 245.214L194.584 245.214L194.584 248.687Q195.896 246.817 197.984 245.676Q200.073 244.534 202.550 244.534Q205.343 244.534 207.626 245.906Q209.909 247.279 211.196 249.537Q212.483 247.279 214.766 245.906Q217.049 244.534 219.817 244.534Q222.586 244.534 224.844 245.882Q227.103 247.230 228.451 249.489Q229.799 251.747 229.799 254.516L229.799 269.500L226.714 269.500L226.714 255.147Q226.714 253.131 225.731 251.431Q224.747 249.731 223.108 248.699Q221.469 247.667 219.453 247.667Q217.461 247.667 215.810 248.626Q214.159 249.586 213.187 251.274Q212.216 252.961 212.216 255.147L212.216 269.500L209.107 269.500L209.107 255.147Q209.107 252.961 208.124 251.274Q207.140 249.586 205.489 248.626Q203.837 247.667 201.846 247.667Q199.854 247.667 198.203 248.699Q196.551 249.731 195.568 251.431Q194.584 253.131 194.584 255.147M239.584 269.500L236.500 269.500L236.500 245.214L239.584 245.214L239.584 248.687Q240.896 246.817 242.984 245.676Q245.073 244.534 247.550 244.534Q250.343 244.534 252.626 245.906Q254.909 247.279 256.196 249.537Q257.483 247.279 259.766 245.906Q262.049 244.534 264.817 244.534Q267.586 244.534 269.844 245.882Q272.103 247.230 273.451 249.489Q274.799 251.747 274.799 254.516L274.799 269.500L271.714 269.500L271.714 255.147Q271.714 253.131 270.731 251.431Q269.747 249.731 268.108 248.699Q266.469 247.667 264.453 247.667Q262.461 247.667 260.810 248.626Q259.159 249.586 258.187 251.274Q257.216 252.961 257.216 255.147L257.216 269.500L254.107 269.500L254.107 255.147Q254.107 252.961 253.124 251.274Q252.140 249.586 250.489 248.626Q248.837 247.667 246.846 247.667Q244.854 247.667 243.203 248.699Q241.551 249.731 240.568 251.431Q239.584 253.131 239.584 255.147M289.643 270.131Q286.291 270.131 283.535 268.407Q280.779 266.683 279.139 263.781Q277.500 260.879 277.500 257.357Q277.500 253.811 279.139 250.897Q280.779 247.983 283.535 246.259Q286.291 244.534 289.643 244.534Q292.994 244.534 295.751 246.259Q298.507 247.983 300.146 250.897Q301.786 253.811 301.786 257.357Q301.786 260.879 300.146 263.781Q298.507 266.683 295.751 268.407Q292.994 270.131 289.643 270.131M289.643 267.047Q292.193 267.047 294.245 265.711Q296.297 264.376 297.499 262.166Q298.701 259.956 298.701 257.357Q298.701 254.710 297.487 252.500Q296.273 250.290 294.221 248.954Q292.169 247.619 289.643 247.619Q287.069 247.619 285.016 248.966Q282.964 250.314 281.774 252.524Q280.584 254.734 280.584 257.357Q280.584 260.053 281.823 262.251Q283.061 264.449 285.126 265.748Q287.190 267.047 289.643 267.047M316.449 245.034Q319.096 245.034 321.403 246.030Q323.710 247.026 325.471 248.786Q327.231 250.547 328.227 252.866Q329.223 255.186 329.223 257.833Q329.223 260.480 328.227 262.799Q327.231 265.119 325.471 266.879Q323.710 268.640 321.403 269.636Q319.096 270.631 316.449 270.631Q313.364 270.631 311.106 269.150Q308.847 267.669 307.584 265.264L307.584 270L304.500 270L304.500 233.571L307.584 233.571L307.584 250.401Q308.847 247.997 311.106 246.516Q313.364 245.034 316.449 245.034M316.400 267.620Q319.096 267.620 321.281 266.296Q323.467 264.973 324.779 262.751Q326.090 260.529 326.090 257.833Q326.090 255.089 324.754 252.866Q323.419 250.644 321.221 249.345Q319.023 248.046 316.400 248.046Q313.729 248.046 311.810 249.381Q309.891 250.717 308.871 252.939Q307.851 255.161 307.851 257.833Q307.851 260.553 308.896 262.775Q309.940 264.997 311.859 266.309Q313.777 267.620 316.400 267.620M332.219 269L332.219 244.714L335.303 244.714L335.303 269L332.219 269M333.773 240.319Q332.996 240.319 332.474 239.821Q331.951 239.323 331.951 238.546Q331.951 237.769 332.474 237.271Q332.996 236.773 333.773 236.773Q334.526 236.773 335.060 237.271Q335.594 237.769 335.594 238.546Q335.594 239.323 335.072 239.821Q334.550 240.319 333.773 240.319M342.584 271L339.500 271L339.500 234.571L342.584 234.571M347.219 269L347.219 244.714L350.303 244.714L350.303 269L347.219 269M348.773 240.319Q347.996 240.319 347.474 239.821Q346.951 239.323 346.951 238.546Q346.951 237.769 347.474 237.271Q347.996 236.773 348.773 236.773Q349.526 236.773 350.060 237.271Q350.594 237.769 350.594 238.546Q350.594 239.323 350.072 239.821Q349.550 240.319 348.773 240.319M364.643 270.131Q361.291 270.131 358.535 268.407Q355.779 266.683 354.139 263.781Q352.500 260.879 352.500 257.357Q352.500 253.811 354.139 250.897Q355.779 247.983 358.535 246.259Q361.291 244.534 364.643 244.534Q368.237 244.534 371.006 246.368Q373.774 248.201 375.304 251.383Q376.834 254.564 376.689 258.571L355.754 258.571Q356.021 260.976 357.260 262.894Q358.499 264.813 360.405 265.918Q362.311 267.023 364.643 267.047Q367.169 267.047 369.209 265.724Q371.249 264.400 372.487 262.069L375.620 262.797Q374.163 266.027 371.224 268.079Q368.286 270.131 364.643 270.131M355.681 256.021L373.580 256.021Q373.410 253.666 372.171 251.699Q370.933 249.731 368.966 248.541Q366.999 247.351 364.643 247.351Q362.263 247.351 360.320 248.517Q358.377 249.683 357.139 251.638Q355.900 253.593 355.681 256.021M400.531 254.516L400.531 269.500L397.447 269.500L397.447 255.074Q397.447 253.034 396.439 251.346Q395.431 249.659 393.744 248.663Q392.056 247.667 390.016 247.667Q387.976 247.667 386.288 248.663Q384.600 249.659 383.592 251.346Q382.584 253.034 382.584 255.074L382.584 269.500L379.500 269.500L379.500 245.214L382.584 245.214L382.584 248.687Q383.896 246.817 385.984 245.676Q388.073 244.534 390.550 244.534Q393.319 244.534 395.589 245.882Q397.860 247.230 399.196 249.489Q400.531 251.747 400.531 254.516"></path></svg></a>
+    <div class="nav-rechts">
+      <span class="testmark">Testversion · nicht öffentlich</span>
+      <a class="nav-link" href="https://bub-immo.de/">Zur Website</a>
+      <a class="btn nav-cta" id="nav-beratung" hidden href="https://bub-immo.de/qualifizierung">Beratung buchen</a>
+    </div>
+  </nav>
+  <header class="hero">
+    <p class="kicker">Obi · Der Objekt-Checker</p>
+    <h1>Bevor du unterschreibst, <em>schaut Obi drüber.</em></h1>
+    <p class="lead">Lade Exposé und Kalkulation hoch. Obi recherchiert Marktpreise und Mietspiegel der Lage, prüft Kaufpreis, Rendite, AfA und Gewerke und sagt dir ehrlich, ob das Angebot hält, was es verspricht.</p>
+  </header>
+
+
+  <div class="grid">
+    <section class="sheet panel" aria-labelledby="h-unterlagen">
+      <div class="step">
+        <p class="label">Schritt 1</p>
+        <h2 id="h-unterlagen">Unterlagen hochladen</h2>
+      </div>
+      <div class="drop" id="drop" tabindex="0" role="button" aria-label="Dateien auswählen oder hierher ziehen">
+        <strong>Exposé, Kalkulation, Gutachten</strong>
+        <small>PDF, Excel oder Fotos · hier ablegen oder klicken</small>
+        <input type="file" id="file" accept="application/pdf,image/*,.xlsx,.xls,.xlsm,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,application/vnd.ms-excel.sheet.macroEnabled.12,text/csv" multiple hidden>
+      </div>
+      <ul class="files" id="files"></ul>
+
+      <div class="step">
+        <p class="label">Schritt 2 · optional</p>
+        <h2>Was Obi sonst wissen sollte</h2>
+      </div>
+      <div class="field">
+        <label for="extra">Weitere Infos zum Angebot</label>
+        <textarea id="extra" placeholder="z. B. Anbieter, Mietgarantie, was der Verkäufer mündlich zugesagt hat"></textarea>
+      </div>
+      <details class="opt">
+        <summary>Vergleichswerte selbst vorgeben <span>optional</span></summary>
+        <div class="fields">
+          <div class="field">
+            <label for="avg">Ø Kaufpreis</label>
+            <input id="avg" inputmode="decimal" placeholder="z. B. 3.200">
+            <small>€/m² laut Immoscout/Homeday</small>
+          </div>
+          <div class="field">
+            <label for="ms">Mietspiegel</label>
+            <input id="ms" inputmode="decimal" placeholder="z. B. 11,00">
+            <small>€/m² ortsübliche Miete</small>
+          </div>
+        </div>
+        <p class="note" id="opt-note">Leer lassen: Obi recherchiert die Marktwerte der Lage selbst. Eigene Werte haben Vorrang.</p>
+      </details>
+
+      <div class="step">
+        <p class="label">Obi recherchiert die Lage und prüft 7 Bereiche</p>
+        <div class="areas"><span>Kaufpreis</span><span>Mietrendite</span><span>Mietmodell</span><span>AfA &amp; Gutachten</span><span>Steuermodelle</span><span>Gewerke</span><span>Anbieter</span></div>
+      </div>
+
+      <div class="row">
+        <button class="btn" id="go" disabled>Objekt prüfen</button>
+        <button class="btn ghost" id="demo">Beispiel laden</button>
+      </div>
+      <p class="note" id="status" role="status"></p>
+    </section>
+
+    <section class="sheet chat" aria-labelledby="h-chat">
+      <div class="chat-head">
+        <div><p class="label">Prüfbericht</p><h2 id="h-chat">Gespräch mit Obi</h2></div>
+        <div class="verdict" id="verdict"><i></i><span>Noch kein Urteil</span></div>
+      </div>
+      <div class="log" id="log" aria-live="polite">
+        <div class="empty" id="empty">
+          <b>Noch kein Objekt auf dem Tisch.</b>
+          <span>Lade links deine Unterlagen hoch oder probier das fiktive Beispielobjekt aus. Danach kannst du Obi Rückfragen stellen.</span>
+        </div>
+      </div>
+      <form class="composer" id="composer">
+        <textarea id="ask" rows="1" placeholder="Rückfrage an Obi, z. B. Was soll ich den Anbieter zur AfA fragen?" disabled></textarea>
+        <button class="btn" id="send" type="submit" disabled>Senden</button>
+        <button class="btn ghost" id="stop" type="button" hidden>Stopp</button>
+      </form>
+    </section>
+  </div>
+
+  <p class="foot">Obi gibt eine Ersteinschätzung auf Basis der Unterlagen und öffentlich verfügbarer Marktdaten, keine Anlage-, Steuer- oder Rechtsberatung. Die Marktdaten recherchiert Obi im Internet und nennt die Quellen. Prüf wichtige Werte vor einer Entscheidung trotzdem nach. Hochgeladene Unterlagen werden zur Auswertung an Anthropic (Claude API) übermittelt. Diese Seite selbst speichert sie nicht.</p>
+</div>
+
+<footer class="fuss">
+  <div class="fuss-shell">
+    <div class="fuss-oben">
+      <a href="https://bub-immo.de/" aria-label="Zur Startseite von Brot &amp; Butter Immobilien"><svg xmlns="http://www.w3.org/2000/svg" viewBox="85.00 194.00 317.03 81.50" role="img" aria-hidden="true"><path class="logo-b-grau" fill="#A6A6A6" d="M112.854 274L86.500 274L86.500 195.500L112.405 195.500Q117.507 195.500 121.713 197.995Q125.918 200.490 128.413 204.696Q130.909 208.901 130.909 214.004Q130.909 219.442 128.077 223.844Q125.245 228.246 120.704 230.545Q127.096 232.956 131.189 238.647Q135.282 244.338 135.282 251.571Q135.282 257.739 132.254 262.842Q129.226 267.944 124.152 270.972Q119.078 274 112.854 274M89.864 198.864L89.864 229.143L112.405 229.143Q116.554 229.143 119.975 227.124Q123.395 225.106 125.470 221.685Q127.544 218.265 127.544 214.004Q127.544 209.798 125.526 206.378Q123.507 202.957 120.059 200.911Q116.610 198.864 112.405 198.864L89.864 198.864M89.864 232.507L89.864 270.636L112.854 270.636Q117.956 270.636 122.302 268.141Q126.647 265.645 129.282 261.328Q131.918 257.010 131.918 251.571Q131.918 246.132 129.282 241.815Q126.647 237.498 122.330 235.002Q118.012 232.507 112.854 232.507"></path><path fill="currentColor" d="M145.854 274L119.500 274L119.500 195.500L145.405 195.500Q150.507 195.500 154.713 197.995Q158.918 200.490 161.413 204.696Q163.909 208.901 163.909 214.004Q163.909 219.442 161.077 223.844Q158.245 228.246 153.704 230.545Q160.096 232.956 164.189 238.647Q168.282 244.338 168.282 251.571Q168.282 257.739 165.254 262.842Q162.226 267.944 157.152 270.972Q152.077 274 145.854 274M122.864 198.864L122.864 229.143L145.405 229.143Q149.554 229.143 152.975 227.124Q156.395 225.106 158.470 221.685Q160.544 218.265 160.544 214.004Q160.544 209.798 158.526 206.378Q156.507 202.957 153.059 200.911Q149.610 198.864 145.405 198.864L122.864 198.864M122.864 232.507L122.864 270.636L145.854 270.636Q150.956 270.636 155.302 268.141Q159.647 265.645 162.282 261.328Q164.918 257.010 164.918 251.571Q164.918 246.132 162.282 241.815Q159.647 237.498 155.330 235.002Q151.012 232.507 145.854 232.507M190.883 231.500L181.500 231.500L181.500 204.800L190.692 204.800Q192.428 204.800 193.858 205.649Q195.289 206.497 196.137 207.928Q196.986 209.358 196.986 211.094Q196.986 212.924 196.023 214.431Q195.060 215.938 193.534 216.720Q195.708 217.521 197.110 219.466Q198.512 221.411 198.512 223.871Q198.512 225.969 197.482 227.705Q196.452 229.440 194.716 230.470Q192.981 231.500 190.883 231.500M183.369 206.516L183.369 216.014L190.445 216.014Q191.741 216.014 192.809 215.385Q193.877 214.755 194.526 213.678Q195.174 212.600 195.174 211.284Q195.174 209.968 194.545 208.891Q193.916 207.813 192.838 207.165Q191.760 206.516 190.445 206.516L183.369 206.516M183.369 217.730L183.369 229.784L190.731 229.784Q192.333 229.784 193.706 228.992Q195.079 228.201 195.908 226.837Q196.738 225.473 196.738 223.757Q196.738 222.041 195.908 220.677Q195.079 219.313 193.715 218.522Q192.352 217.730 190.731 217.730M207.695 230.500L205.826 230.500L205.826 211.429L207.695 211.429L207.695 214.423Q208.744 212.821 210.460 211.858Q212.177 210.895 214.217 210.895Q215.342 210.895 216.353 211.181L215.590 213.012Q214.808 212.783 213.969 212.783Q212.234 212.783 210.813 213.631Q209.392 214.480 208.543 215.901Q207.695 217.322 207.695 219.057M226.415 230.996Q223.783 230.996 221.618 229.642Q219.453 228.288 218.166 226.009Q216.879 223.730 216.879 220.964Q216.879 218.180 218.166 215.891Q219.453 213.603 221.618 212.249Q223.783 210.895 226.415 210.895Q229.046 210.895 231.211 212.249Q233.376 213.603 234.663 215.891Q235.950 218.180 235.950 220.964Q235.950 223.730 234.663 226.009Q233.376 228.288 231.211 229.642Q229.046 230.996 226.415 230.996M226.415 229.127Q228.570 229.127 230.305 227.992Q232.041 226.857 233.061 225.007Q234.081 223.157 234.081 220.964Q234.081 218.752 233.061 216.893Q232.041 215.033 230.305 213.898Q228.570 212.764 226.415 212.764Q224.240 212.764 222.505 213.898Q220.769 215.033 219.759 216.893Q218.748 218.752 218.748 220.964Q218.748 223.234 219.797 225.084Q220.846 226.934 222.591 228.030Q224.336 229.127 226.415 229.127M245.438 210.929L245.438 212.798L240.536 212.798L240.498 230L238.629 230L238.667 212.798L234.967 212.798L234.967 210.929L238.667 210.929L238.629 204.940L240.498 204.940L240.536 210.929M261.276 231.496Q259.044 231.496 257.347 230.418Q255.650 229.341 254.696 227.605Q253.743 225.870 253.743 223.924Q253.743 222.685 254.010 221.769Q254.277 220.854 254.954 219.939Q255.631 219.023 256.851 217.784Q258.072 216.544 259.960 214.637Q258.434 213.092 257.624 212.215Q256.813 211.337 256.527 210.613Q256.241 209.888 256.241 208.820Q256.241 207.409 256.927 206.255Q257.614 205.101 258.768 204.424Q259.922 203.747 261.276 203.747Q262.668 203.747 263.822 204.424Q264.976 205.101 265.672 206.255Q266.368 207.409 266.368 208.820Q266.368 209.926 266.053 210.670Q265.738 211.414 264.928 212.291Q264.117 213.168 262.630 214.637L270.602 222.609L274.549 218.680L274.549 221.312L271.879 223.982L277.601 229.684L276.285 231L270.602 225.336Q268.675 227.262 267.436 228.473Q266.196 229.684 265.281 230.342Q264.365 231 263.459 231.248Q262.554 231.496 261.276 231.496M261.276 213.473Q262.668 212.100 263.383 211.385Q264.098 210.670 264.346 210.136Q264.594 209.602 264.594 208.801Q264.594 207.409 263.612 206.446Q262.630 205.482 261.276 205.482Q259.864 205.482 258.930 206.493Q257.995 207.504 257.995 208.801Q257.995 209.621 258.262 210.164Q258.529 210.708 259.245 211.423Q259.960 212.138 261.276 213.473M261.276 229.627Q262.344 229.627 263.088 229.398Q263.831 229.169 264.594 228.559Q265.357 227.949 266.444 226.833Q267.531 225.717 269.267 223.963L261.276 215.972Q259.483 217.784 258.367 218.890Q257.252 219.996 256.660 220.759Q256.069 221.522 255.859 222.237Q255.650 222.952 255.650 223.982Q255.650 225.565 256.403 226.842Q257.156 228.120 258.434 228.874Q259.712 229.627 261.276 229.627M297.952 231.500L288.569 231.500L288.569 204.800L297.762 204.800Q299.497 204.800 300.927 205.649Q302.358 206.497 303.206 207.928Q304.055 209.358 304.055 211.094Q304.055 212.924 303.092 214.431Q302.129 215.938 300.603 216.720Q302.777 217.521 304.179 219.466Q305.581 221.411 305.581 223.871Q305.581 225.969 304.551 227.705Q303.521 229.440 301.786 230.470Q300.050 231.500 297.952 231.500M290.438 206.516L290.438 216.014L297.514 216.014Q298.810 216.014 299.878 215.385Q300.946 214.755 301.595 213.678Q302.243 212.600 302.243 211.284Q302.243 209.968 301.614 208.891Q300.985 207.813 299.907 207.165Q298.830 206.516 297.514 206.516L290.438 206.516M290.438 217.730L290.438 229.784L297.800 229.784Q299.402 229.784 300.775 228.992Q302.148 228.201 302.978 226.837Q303.807 225.473 303.807 223.757Q303.807 222.041 302.978 220.677Q302.148 219.313 300.784 218.522Q299.421 217.730 297.800 217.730M308.632 223.600L308.632 211.929L310.501 211.929L310.501 223.333Q310.501 225.069 311.350 226.490Q312.198 227.910 313.619 228.759Q315.040 229.608 316.776 229.608Q318.511 229.608 319.932 228.759Q321.353 227.910 322.201 226.490Q323.050 225.069 323.050 223.333L323.050 211.929L324.919 211.929L324.919 231L323.050 231L323.050 227.968Q322.001 229.570 320.285 230.533Q318.568 231.496 316.528 231.496Q314.353 231.496 312.561 230.428Q310.768 229.360 309.700 227.567Q308.632 225.774 308.632 223.600M337.288 210.929L337.288 212.798L332.387 212.798L332.348 230L330.479 230L330.518 212.798L326.818 212.798L326.818 210.929L330.518 210.929L330.479 204.940L332.348 204.940L332.387 210.929M349.256 210.929L349.256 212.798L344.355 212.798L344.317 230L342.448 230L342.486 212.798L338.786 212.798L338.786 210.929L342.486 210.929L342.448 204.940L344.317 204.940L344.355 210.929M361.061 230.996Q358.430 230.996 356.265 229.642Q354.100 228.288 352.813 226.009Q351.526 223.730 351.526 220.964Q351.526 218.180 352.813 215.891Q354.100 213.603 356.265 212.249Q358.430 210.895 361.061 210.895Q363.846 210.895 366.001 212.287Q368.156 213.679 369.367 216.130Q370.578 218.580 370.540 221.746L353.471 221.746Q353.681 223.863 354.730 225.522Q355.779 227.182 357.428 228.145Q359.078 229.108 361.061 229.127Q363.236 229.127 364.990 227.973Q366.745 226.819 367.794 224.798L369.682 225.236Q368.537 227.773 366.230 229.384Q363.922 230.996 361.061 230.996M353.433 220.125L368.652 220.125Q368.537 218.104 367.498 216.406Q366.459 214.709 364.771 213.679Q363.083 212.649 361.061 212.649Q359.021 212.649 357.362 213.650Q355.702 214.652 354.653 216.349Q353.604 218.046 353.433 220.125M374.842 229.500L372.973 229.500L372.973 210.429L374.842 210.429L374.842 213.423Q375.890 211.821 377.607 210.858Q379.323 209.895 381.364 209.895Q382.489 209.895 383.500 210.181L382.737 212.012Q381.955 211.783 381.116 211.783Q379.381 211.783 377.960 212.631Q376.539 213.480 375.690 214.901Q374.842 216.322 374.842 218.057M185.584 270.500L182.500 270.500L182.500 236.500L185.584 236.500M194.584 269.500L191.500 269.500L191.500 245.214L194.584 245.214L194.584 248.687Q195.896 246.817 197.984 245.676Q200.073 244.534 202.550 244.534Q205.343 244.534 207.626 245.906Q209.909 247.279 211.196 249.537Q212.483 247.279 214.766 245.906Q217.049 244.534 219.817 244.534Q222.586 244.534 224.844 245.882Q227.103 247.230 228.451 249.489Q229.799 251.747 229.799 254.516L229.799 269.500L226.714 269.500L226.714 255.147Q226.714 253.131 225.731 251.431Q224.747 249.731 223.108 248.699Q221.469 247.667 219.453 247.667Q217.461 247.667 215.810 248.626Q214.159 249.586 213.187 251.274Q212.216 252.961 212.216 255.147L212.216 269.500L209.107 269.500L209.107 255.147Q209.107 252.961 208.124 251.274Q207.140 249.586 205.489 248.626Q203.837 247.667 201.846 247.667Q199.854 247.667 198.203 248.699Q196.551 249.731 195.568 251.431Q194.584 253.131 194.584 255.147M239.584 269.500L236.500 269.500L236.500 245.214L239.584 245.214L239.584 248.687Q240.896 246.817 242.984 245.676Q245.073 244.534 247.550 244.534Q250.343 244.534 252.626 245.906Q254.909 247.279 256.196 249.537Q257.483 247.279 259.766 245.906Q262.049 244.534 264.817 244.534Q267.586 244.534 269.844 245.882Q272.103 247.230 273.451 249.489Q274.799 251.747 274.799 254.516L274.799 269.500L271.714 269.500L271.714 255.147Q271.714 253.131 270.731 251.431Q269.747 249.731 268.108 248.699Q266.469 247.667 264.453 247.667Q262.461 247.667 260.810 248.626Q259.159 249.586 258.187 251.274Q257.216 252.961 257.216 255.147L257.216 269.500L254.107 269.500L254.107 255.147Q254.107 252.961 253.124 251.274Q252.140 249.586 250.489 248.626Q248.837 247.667 246.846 247.667Q244.854 247.667 243.203 248.699Q241.551 249.731 240.568 251.431Q239.584 253.131 239.584 255.147M289.643 270.131Q286.291 270.131 283.535 268.407Q280.779 266.683 279.139 263.781Q277.500 260.879 277.500 257.357Q277.500 253.811 279.139 250.897Q280.779 247.983 283.535 246.259Q286.291 244.534 289.643 244.534Q292.994 244.534 295.751 246.259Q298.507 247.983 300.146 250.897Q301.786 253.811 301.786 257.357Q301.786 260.879 300.146 263.781Q298.507 266.683 295.751 268.407Q292.994 270.131 289.643 270.131M289.643 267.047Q292.193 267.047 294.245 265.711Q296.297 264.376 297.499 262.166Q298.701 259.956 298.701 257.357Q298.701 254.710 297.487 252.500Q296.273 250.290 294.221 248.954Q292.169 247.619 289.643 247.619Q287.069 247.619 285.016 248.966Q282.964 250.314 281.774 252.524Q280.584 254.734 280.584 257.357Q280.584 260.053 281.823 262.251Q283.061 264.449 285.126 265.748Q287.190 267.047 289.643 267.047M316.449 245.034Q319.096 245.034 321.403 246.030Q323.710 247.026 325.471 248.786Q327.231 250.547 328.227 252.866Q329.223 255.186 329.223 257.833Q329.223 260.480 328.227 262.799Q327.231 265.119 325.471 266.879Q323.710 268.640 321.403 269.636Q319.096 270.631 316.449 270.631Q313.364 270.631 311.106 269.150Q308.847 267.669 307.584 265.264L307.584 270L304.500 270L304.500 233.571L307.584 233.571L307.584 250.401Q308.847 247.997 311.106 246.516Q313.364 245.034 316.449 245.034M316.400 267.620Q319.096 267.620 321.281 266.296Q323.467 264.973 324.779 262.751Q326.090 260.529 326.090 257.833Q326.090 255.089 324.754 252.866Q323.419 250.644 321.221 249.345Q319.023 248.046 316.400 248.046Q313.729 248.046 311.810 249.381Q309.891 250.717 308.871 252.939Q307.851 255.161 307.851 257.833Q307.851 260.553 308.896 262.775Q309.940 264.997 311.859 266.309Q313.777 267.620 316.400 267.620M332.219 269L332.219 244.714L335.303 244.714L335.303 269L332.219 269M333.773 240.319Q332.996 240.319 332.474 239.821Q331.951 239.323 331.951 238.546Q331.951 237.769 332.474 237.271Q332.996 236.773 333.773 236.773Q334.526 236.773 335.060 237.271Q335.594 237.769 335.594 238.546Q335.594 239.323 335.072 239.821Q334.550 240.319 333.773 240.319M342.584 271L339.500 271L339.500 234.571L342.584 234.571M347.219 269L347.219 244.714L350.303 244.714L350.303 269L347.219 269M348.773 240.319Q347.996 240.319 347.474 239.821Q346.951 239.323 346.951 238.546Q346.951 237.769 347.474 237.271Q347.996 236.773 348.773 236.773Q349.526 236.773 350.060 237.271Q350.594 237.769 350.594 238.546Q350.594 239.323 350.072 239.821Q349.550 240.319 348.773 240.319M364.643 270.131Q361.291 270.131 358.535 268.407Q355.779 266.683 354.139 263.781Q352.500 260.879 352.500 257.357Q352.500 253.811 354.139 250.897Q355.779 247.983 358.535 246.259Q361.291 244.534 364.643 244.534Q368.237 244.534 371.006 246.368Q373.774 248.201 375.304 251.383Q376.834 254.564 376.689 258.571L355.754 258.571Q356.021 260.976 357.260 262.894Q358.499 264.813 360.405 265.918Q362.311 267.023 364.643 267.047Q367.169 267.047 369.209 265.724Q371.249 264.400 372.487 262.069L375.620 262.797Q374.163 266.027 371.224 268.079Q368.286 270.131 364.643 270.131M355.681 256.021L373.580 256.021Q373.410 253.666 372.171 251.699Q370.933 249.731 368.966 248.541Q366.999 247.351 364.643 247.351Q362.263 247.351 360.320 248.517Q358.377 249.683 357.139 251.638Q355.900 253.593 355.681 256.021M400.531 254.516L400.531 269.500L397.447 269.500L397.447 255.074Q397.447 253.034 396.439 251.346Q395.431 249.659 393.744 248.663Q392.056 247.667 390.016 247.667Q387.976 247.667 386.288 248.663Q384.600 249.659 383.592 251.346Q382.584 253.034 382.584 255.074L382.584 269.500L379.500 269.500L379.500 245.214L382.584 245.214L382.584 248.687Q383.896 246.817 385.984 245.676Q388.073 244.534 390.550 244.534Q393.319 244.534 395.589 245.882Q397.860 247.230 399.196 249.489Q400.531 251.747 400.531 254.516"></path></svg></a>
+      <nav class="fuss-menue" aria-label="Fußnavigation">
+        <a href="https://bub-immo.de/">Startseite</a>
+        <a href="https://bub-immo.de/qualifizierung" id="fuss-beratung" hidden>Beratung buchen</a>
+      </nav>
+    </div>
+    <div class="fuss-unten">
+      <span>© 2026 Brot &amp; Butter Immobilien · Obi Objekt-Checker</span>
+      <span class="fuss-rechtliches"><a href="https://bub-immo.de/impressum">Impressum</a><a href="https://bub-immo.de/datenschutz">Datenschutz</a></span>
+    </div>
+  </div>
+</footer>
+
+<script>
+const DEMO = `FIKTIVES BEISPIELOBJEKT (nur zum Testen)
+
+Exposé: Gemütliche 2-Zimmer-Wohnung in Lahr (Schwarzwald), ruhige Wohnlage
+Wohnfläche: 54 m², 2. OG, Baujahr 1972, Mehrfamilienhaus mit 8 Einheiten
+Kaufpreis: 199.000 € zzgl. Stellplatz 8.000 €
+Zustand: Wohnung 2024 frisch renoviert (Boden, Bad, Küche neu). Fenster 2001, Heizung Gas-Zentral 1999, Dach Originalzustand 1972 mit Teilreparatur 2015, Elektrik in der Wohnung erneuert, Steigleitungen alt.
+Vermietung: möbliert als WG-Zimmer-Modell (2 Zimmer einzeln vermietet), Gesamt-Kaltmiete aktuell 470 € (8,70 €/m²)
+Mietgarantie: Verkäufer garantiert für 3 Jahre eine Kaltmiete von 13,00 €/m² (702 €/Monat)
+
+Kalkulation des Anbieters:
+- Bruttomietrendite "mit Mietgarantie": 4,2 %
+- AfA: voraussichtlich 5,0 % auf Basis eines Restnutzungsdauer-Gutachtens, das nach Kauf über einen Online-Gutachtenservice beauftragt wird (Kosten 690 €, trägt der Käufer)
+- Zusätzlich separater Renovierungsvertrag über 48.000 € (Erhaltungsaufwand, im ersten Jahr voll absetzbar laut Anbieter)
+- "Steuerersparnis im ersten Jahr: über 20.000 €"
+Anbieter: Vertrieb seit 2023 am Markt, Betreuung nach dem Kauf "auf Anfrage".
+Protokoll der Eigentümerversammlung 2025: Dachsanierung wird diskutiert, Sonderumlage noch nicht beschlossen.`;
+
+const API = "/api/obi";
+try { if (new URLSearchParams(location.search).has("embed")) document.documentElement.dataset.embed = ""; } catch {}
+const MAX_IMAGES = 8;
+const $ = s => document.querySelector(s);
+const state = { docs: [], turns: [], payload: null, busy: false, ctl: null };
+
+// Optionaler Zugangscode für die Testphase: einmal ?code=... in der URL, danach gemerkt.
+let CODE = "";
+try {
+  const fromUrl = new URLSearchParams(location.search).get("code");
+  if (fromUrl) localStorage.setItem("obi-code", fromUrl);
+  CODE = fromUrl || localStorage.getItem("obi-code") || "";
+} catch { CODE = new URLSearchParams(location.search).get("code") || ""; }
+
+if (window.pdfjsLib) {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+}
+
+function status(t, err) { const n = $("#status"); n.textContent = t || ""; n.classList.toggle("err", !!err); }
+
+function refresh() {
+  const ul = $("#files"); ul.innerHTML = "";
+  state.docs.forEach((d, i) => {
+    const li = document.createElement("li");
+    const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = d.name;
+    const st = document.createElement("span"); st.className = "st"; st.textContent = d.info;
+    const rm = document.createElement("button"); rm.type = "button"; rm.textContent = "×"; rm.setAttribute("aria-label", d.name + " entfernen");
+    rm.onclick = () => { state.docs.splice(i, 1); refresh(); };
+    li.append(nm, st, rm); ul.append(li);
+  });
+  $("#go").disabled = state.busy || (!state.docs.length && !$("#extra").value.trim());
+}
+$("#extra").addEventListener("input", refresh);
+
+const drop = $("#drop"), fileIn = $("#file");
+drop.onclick = () => fileIn.click();
+drop.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileIn.click(); } };
+drop.ondragover = e => { e.preventDefault(); drop.classList.add("over"); };
+drop.ondragleave = () => drop.classList.remove("over");
+drop.ondrop = e => { e.preventDefault(); drop.classList.remove("over"); addFiles(e.dataTransfer.files); };
+fileIn.onchange = () => { addFiles(fileIn.files); fileIn.value = ""; };
+
+async function addFiles(list) {
+  // Kopie: Die Dateiauswahl wird sofort zurückgesetzt, die Liste wäre sonst ab der zweiten Datei leer.
+  const broken = [];
+  for (const f of [...list]) {
+    if (f.type === "application/pdf" || /\.pdf$/i.test(f.name)) await addPdf(f);
+    else if (/\.(xlsx|xls|xlsm|csv)$/i.test(f.name)) { if (!(await addSheet(f))) broken.push(f.name); }
+    else if (f.type.startsWith("image/")) state.docs.push({ name: f.name, info: "Foto", text: "", images: [f] });
+    else status(f.name + " ist weder PDF, Excel noch Bild.", true);
+    refresh();
+  }
+  // Erst am Ende melden, sonst überschreibt die nächste Datei die Meldung.
+  if (broken.length) status(broken.map(n => `${n}: Diese Excel-Datei konnte ich nicht öffnen. Speicher sie bitte ohne Passwort oder als PDF.`).join(" "), true);
+}
+
+async function addPdf(f) {
+  if (!window.pdfjsLib) { status("Der PDF-Leser konnte nicht geladen werden. Lade die Seite neu.", true); return; }
+  const entry = { name: f.name, info: "wird gelesen…", text: "", images: [], file: f };
+  state.docs.push(entry); refresh(); status("");
+  try {
+    const pdf = await pdfjsLib.getDocument({ data: await f.arrayBuffer() }).promise;
+    let out = [], scanned = 0;
+    for (let p = 1; p <= pdf.numPages; p++) {
+      const page = await pdf.getPage(p);
+      const tc = await page.getTextContent();
+      const txt = layoutText(tc.items);
+      if (txt.length > 60) out.push(`--- Seite ${p} ---\n${txt}`);
+      else if (entry.images.length < 6) {
+        // Gescannte Seite: als Bild rendern, damit Obi sie lesen kann.
+        const base = page.getViewport({ scale: 1 });
+        const vp = page.getViewport({ scale: Math.min(2, 1568 / Math.max(base.width, base.height)) });
+        const c = document.createElement("canvas"); c.width = vp.width; c.height = vp.height;
+        await page.render({ canvasContext: c.getContext("2d"), viewport: vp }).promise;
+        const blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.82));
+        if (blob) { entry.images.push(blob); scanned++; out.push(`--- Seite ${p}: als Bild beigefügt ---`); }
+      }
+    }
+    entry.text = out.join("\n\n");
+    entry.info = `${pdf.numPages} S.` + (scanned ? ` · ${scanned} als Bild` : "");
+  } catch (e) {
+    entry.info = "nicht lesbar"; status(f.name + " konnte nicht gelesen werden. Ist die Datei passwortgeschützt?", true);
+  }
+  refresh();
+}
+
+function toBase64(blob) {
+  return new Promise((ok, fail) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(",")[1]); r.onerror = fail; r.readAsDataURL(blob); });
+}
+
+// Excel und CSV: jedes Blatt als Text, Zellen mit " | " getrennt. Es zählen die angezeigten,
+// berechneten Werte (nicht die Formeln). Leere Zeilen und Spalten fallen weg.
+async function addSheet(f) {
+  const entry = { name: f.name, info: "wird gelesen…", text: "", images: [] };
+  state.docs.push(entry); refresh(); status("");
+  try {
+    if (!window.XLSX) throw new Error("SheetJS fehlt");
+    const isCsv = /\.csv$/i.test(f.name);
+    const csv = isCsv ? await csvText(f) : "";
+    const buf = isCsv ? null : new Uint8Array(await f.arrayBuffer());
+    // .xlsx/.xlsm sind ZIP-Dateien ("PK"); alles andere ist kaputt oder verschlüsselt (passwortgeschützt).
+    if (/\.xls[xm]$/i.test(f.name) && !(buf[0] === 0x50 && buf[1] === 0x4b)) throw new Error("kein Excel");
+    const wb = isCsv
+      ? XLSX.read(csv, { type: "string", raw: true, FS: csvSep(csv) })
+      : XLSX.read(buf, { type: "array", cellFormula: false, cellHTML: false });
+    const parts = [];
+    wb.SheetNames.forEach((name, i) => {
+      const hidden = wb.Workbook?.Sheets?.[i]?.Hidden ? " (ausgeblendet)" : "";
+      const body = sheetText(wb.Sheets[name], isCsv);
+      parts.push(`--- Excel: ${f.name}, Blatt: ${name}${hidden} ---\n${body || "(leer)"}`);
+    });
+    entry.text = parts.join("\n\n");
+    entry.info = isCsv ? "CSV" : `Excel · ${wb.SheetNames.length} ${wb.SheetNames.length === 1 ? "Blatt" : "Blätter"}`;
+    refresh();
+    return true;
+  } catch {
+    state.docs.splice(state.docs.indexOf(entry), 1);
+    refresh();
+    return false;
+  }
+}
+
+function sheetText(ws, raw) {
+  if (!ws || !ws["!ref"]) return "";
+  const r = XLSX.utils.decode_range(ws["!ref"]);
+  const rows = [];
+  for (let y = r.s.r; y <= r.e.r; y++) {
+    const row = [];
+    for (let x = r.s.c; x <= r.e.c; x++) row.push(cellText(ws[XLSX.utils.encode_cell({ r: y, c: x })], raw));
+    rows.push(row);
+  }
+  const used = rows[0] ? rows[0].map((_, x) => rows.some(row => row[x] !== "")) : [];
+  return rows.filter(row => row.some(v => v !== ""))
+    .map(row => row.filter((_, x) => used[x]).join(" | ")).join("\n");
+}
+
+// Excel speichert Zahlenformate immer englisch (1,234.5). Für die Anzeige wie in einem deutschen Excel
+// werden bei Zahlen Komma und Punkt getauscht ("235.000 €", "5,00%"), Datumswerte bleiben unverändert.
+function cellText(c, raw) {
+  if (!c) return "";
+  let t = c.w != null ? String(c.w) : c.v != null ? String(c.v) : "";
+  if (!raw && c.t === "n" && c.w != null && !(c.z && XLSX.SSF.is_date(c.z))) t = t.replace(/[.,]/g, m => (m === "," ? "." : ","));
+  return t.replace(/\s+/g, " ").trim();
+}
+
+// CSV aus Excel ist oft Windows-1252 kodiert und mit Semikolon getrennt.
+async function csvText(f) {
+  const buf = await f.arrayBuffer();
+  const utf = new TextDecoder("utf-8").decode(buf);
+  return utf.includes("\uFFFD") ? new TextDecoder("windows-1252").decode(buf) : utf;
+}
+function csvSep(text) {
+  const head = text.split(/\r?\n/).slice(0, 5).join("\n");
+  const n = ch => head.split(ch).length;
+  return n(";") > n(",") && n(";") >= n("\t") ? ";" : n("\t") > n(",") ? "\t" : ",";
+}
+
+// PDF-Text zeilenweise nach Position zusammensetzen, damit Beschriftung und Wert einer Tabelle
+// in derselben Zeile bleiben ("Diele | 10,13 m²") statt erst alle Beschriftungen, dann alle Werte.
+function layoutText(items) {
+  const parts = items.filter(it => it.str && it.str.trim()).map(it => ({
+    s: it.str, x: it.transform[4], y: it.transform[5], w: it.width || 0, h: Math.abs(it.height) || 0,
+  })).sort((a, b) => b.y - a.y || a.x - b.x);
+  const rows = [];
+  for (const it of parts) {
+    const tol = it.h ? it.h * 0.4 : 3;
+    const row = rows.find(r => Math.abs(r.y - it.y) <= Math.max(tol, r.tol));
+    if (row) row.items.push(it); else rows.push({ y: it.y, tol, items: [it] });
+  }
+  rows.sort((a, b) => b.y - a.y);
+  return rows.map(r => {
+    r.items.sort((a, b) => a.x - b.x);
+    let line = "", end = null;
+    for (const it of r.items) {
+      if (end !== null) {
+        const gap = it.x - end, h = it.h || 6;
+        if (gap > 2 * h) line = line.trimEnd() + " | ";
+        else if (gap > 0.15 * h && !/\s$/.test(line) && !/^\s/.test(it.s)) line += " ";
+      }
+      line += it.s; end = it.x + it.w;
+    }
+    return line.replace(/[ \t]+/g, " ").trim();
+  }).filter(Boolean).join("\n");
+}
+
+// Bilder verkleinern (max. 1568 px) und als JPEG-Base64 verschicken, damit die Anfrage klein bleibt.
+async function toJpeg(blob) {
+  const bmp = await createImageBitmap(blob);
+  const s = Math.min(1, 1568 / Math.max(bmp.width, bmp.height));
+  const c = document.createElement("canvas"); c.width = Math.round(bmp.width * s); c.height = Math.round(bmp.height * s);
+  const ctx = c.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, c.width, c.height);
+  ctx.drawImage(bmp, 0, 0, c.width, c.height);
+  return { type: "image/jpeg", data: c.toDataURL("image/jpeg", 0.82).split(",")[1] };
+}
+
+$("#demo").onclick = () => {
+  state.docs = state.docs.filter(d => !d.demo);
+  state.docs.push({ name: "Beispiel: 2-Zi.-Wohnung Lahr (fiktiv)", info: "Beispiel", text: DEMO, images: [], demo: true });
+  status("Fiktives Beispielobjekt mit eingebauten Warnsignalen geladen. Obi recherchiert die Marktdaten für Lahr selbst.");
+  refresh();
+};
+
+function addMsg(role, text) {
+  $("#empty")?.remove();
+  const el = document.createElement("div"); el.className = "msg " + role;
+  if (role === "user") el.textContent = text;
+  else {
+    const w = document.createElement("div"); w.className = "who"; w.textContent = "Obi";
+    const s = document.createElement("div"); s.className = "searches";
+    const b = document.createElement("div"); b.className = "md";
+    const q = document.createElement("div"); q.className = "sources";
+    el.append(w, s, b, q);
+  }
+  $("#log").append(el); el.scrollIntoView({ block: "end", behavior: "smooth" });
+  return el;
+}
+
+function setVerdict(v) {
+  const el = $("#verdict"); el.className = "verdict";
+  const map = { "GRÜN": ["gruen", "Grün · solides Angebot"], "GELB": ["gelb", "Gelb · genau nachfragen"], "ROT": ["rot", "Rot · hohes Risiko"], "NICHT BEWERTBAR": ["grau", "Nicht bewertbar"] };
+  const m = map[v]; if (!m) return;
+  el.classList.add(m[0]); el.querySelector("span").textContent = m[1];
+}
+
+function render(box, text) {
+  // Alles vor der URTEIL-Zeile (z. B. "Ich recherchiere…") wird ausgeblendet.
+  const m = text.match(/(^|\n)[\s*#]*URTEIL:\s*\**\s*(NICHT BEWERTBAR|GRÜN|GRUEN|GELB|ROT)\b[^\n]*\n?/i);
+  if (m) { setVerdict(m[2].toUpperCase().replace("GRUEN", "GRÜN")); text = text.slice(m.index + m[0].length); }
+  box.innerHTML = DOMPurify.sanitize(marked.parse(text, { gfm: true, breaks: false }));
+  box.querySelectorAll("table").forEach(t => { if (!t.parentElement.classList.contains("tbl")) { const w = document.createElement("div"); w.className = "tbl"; t.replaceWith(w); w.append(t); } });
+  box.querySelectorAll("a").forEach(a => { a.target = "_blank"; a.rel = "noopener"; });
+  foldDetails(box);
+}
+
+// Alles ab der Überschrift "Ausführliche Prüfung" kommt in einen Abschnitt, der von Anfang an offen ist
+// und sich zuklappen lässt. Der Abschluss-Absatz bleibt immer sichtbar, der Auf/Zu-Zustand bleibt beim Weiterschreiben erhalten.
+const DETAILS_HEAD = /^(teil 2:\s*)?(ausführliche prüfung|details)\s*:?$/i;
+function foldDetails(box) {
+  const h = [...box.children].find(e => DETAILS_HEAD.test(e.textContent.trim())
+    && (/^H[1-4]$/.test(e.tagName) || (e.tagName === "P" && e.firstElementChild?.tagName === "STRONG" && e.firstElementChild.textContent.trim() === e.textContent.trim())));
+  if (!h) return;
+  const det = document.createElement("details"); det.className = "mehr";
+  const sum = document.createElement("summary");
+  sum.innerHTML = '<b>Ausführliche Prüfung</b><span class="zu">Aufklappen +</span><span class="auf">Zuklappen −</span>';
+  det.append(sum);
+  for (let n = h.nextSibling; n; ) { const next = n.nextSibling; det.append(n); n = next; }
+  h.replaceWith(det);
+  const tail = [];
+  for (let e = det.lastElementChild; e && e !== sum; e = e.previousElementSibling) {
+    if (e.tagName === "P" && /^(Das ist eine Ersteinschätzung|Wenn du das im Detail)/.test(e.textContent.trim())) tail.unshift(e);
+    else if (e.tagName === "HR" && tail.length) continue;
+    else break;
+  }
+  box.append(...tail);
+  det.open = box.dataset.open !== "0";
+  det.addEventListener("toggle", () => { box.dataset.open = det.open ? "1" : "0"; });
+}
+
+function renderSources(el, list) {
+  if (!list?.length) return;
+  const h = document.createElement("p"); h.className = "label"; h.textContent = "Quellen der Recherche";
+  const ul = document.createElement("ul");
+  for (const s of list.slice(0, 12)) {
+    let host = ""; try { host = new URL(s.url).hostname.replace(/^www\./, ""); } catch { continue; }
+    const li = document.createElement("li"); const a = document.createElement("a");
+    a.href = s.url; a.target = "_blank"; a.rel = "noopener"; a.textContent = s.title || host;
+    const small = document.createElement("small"); small.textContent = " · " + host;
+    li.append(a, small); ul.append(li);
+  }
+  el.replaceChildren(h, ul);
+}
+
+// Obi ist zuerst ein freier Mehrwert: Das Angebot zur Beratung (Kasten, Kopfzeile, Footer)
+// erscheint erst nach einem fertigen Prüfbericht mit Urteil.
+function addBeratung(el) {
+  $("#nav-beratung").hidden = false; $("#fuss-beratung").hidden = false;
+  const box = document.createElement("div"); box.className = "beratung";
+  box.innerHTML = '<div><p class="label">Nächster Schritt</p><b>Willst du das Objekt im Detail durchrechnen?</b><span class="note">Das Beratungsgespräch bei B&amp;B Immobilien ist kostenlos.</span></div>'
+    + '<a class="btn" href="https://bub-immo.de/qualifizierung" target="_blank" rel="noopener">Beratung buchen</a>';
+  el.append(box);
+}
+
+const RETRY = "Deine Antwort ist unvollständig. Schreib bitte die komplette Bewertung noch einmal mit beiden Teilen, inklusive Eckdaten, der sieben Bereiche, der Rechnung und der Fragen an den Anbieter.";
+const REQUIRED = [/ausführliche prüfung/i, /eckdaten/i, /(sieben|7) bereiche/i, /die rechnung/i, /fragen an den anbieter/i];
+function isComplete(text) { return REQUIRED.every(re => re.test(text)); }
+
+const ERR = {
+  unauthorized: "Zugangscode fehlt oder ist falsch. Öffne den Link mit ?code=… am Ende.",
+  rate_limited: "Gerade zu viele Anfragen. Probier es in ein paar Minuten nochmal.",
+  overloaded: "Claude ist gerade überlastet. Probier es gleich nochmal.",
+  too_large: "Die Unterlagen sind zu lang. Lade nur Exposé und Kalkulation hoch.",
+  payload: "Die Dateien sind zu groß für eine Anfrage. Lade weniger Fotos oder Seiten hoch.",
+  empty: "Lade Unterlagen hoch oder beschreib das Angebot im Textfeld.",
+  refused: "Claude hat diese Anfrage abgelehnt. Prüf, ob die Unterlagen wirklich ein Immobilienangebot sind, und versuch es nochmal.",
+};
+
+async function ask(userText, first) {
+  if (state.busy) return;
+  state.busy = true; refresh();
+  $("#send").disabled = true; $("#ask").disabled = true; $("#stop").hidden = false;
+  if (!first) addMsg("user", userText);
+  state.turns.push({ role: "user", content: userText });
+  const el = addMsg("obi");
+  const box = el.querySelector(".md"), searches = el.querySelector(".searches"), src = el.querySelector(".sources");
+  box.innerHTML = `<span class="thinking">${first ? "Obi liest die Unterlagen und recherchiert die Lage" : "Obi denkt nach"}</span>`;
+  state.ctl = new AbortController();
+  let text = "", errCode = null, truncated = false;
+
+  // Eine Anfrage an Obi mit dem aktuellen Gesprächsverlauf; schreibt live in die Antwortbox.
+  const once = async () => {
+    text = ""; errCode = null; truncated = false;
+    const r = await fetch(API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(CODE ? { "x-obi-code": CODE } : {}) },
+      body: JSON.stringify({ ...state.payload, turns: state.turns }),
+      signal: state.ctl.signal,
+    });
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      throw { code: r.status === 413 ? "payload" : (j.error || "upstream") };
+    }
+    const reader = r.body.getReader(), dec = new TextDecoder();
+    let buf = "";
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split("\n"); buf = lines.pop();
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        let ev; try { ev = JSON.parse(line); } catch { continue; }
+        if (ev.t === "text") { text += ev.d; render(box, text); }
+        else if (ev.t === "search") {
+          const chip = document.createElement("span"); chip.textContent = "Sucht: " + ev.q; searches.append(chip);
+          if (!text) box.innerHTML = '<span class="thinking">Obi recherchiert</span>';
+        }
+        else if (ev.t === "sources") renderSources(src, ev.list);
+        else if (ev.t === "done") truncated = !!ev.truncated;
+        else if (ev.t === "error") errCode = ev.code || "upstream";
+      }
+    }
+    if (errCode) throw { code: errCode };
+    if (!text.trim()) throw { code: "upstream" };
+  };
+
+  try {
+    await once();
+    // Erstbewertung mit Urteil, aber ohne alle Teile der ausführlichen Prüfung: genau ein Neuversuch, keine Schleife.
+    if (first && /gruen|gelb|rot|grau/.test($("#verdict").className) && !isComplete(text)) {
+      const firstText = text;
+      state.turns.push({ role: "assistant", content: firstText }, { role: "user", content: RETRY });
+      status("Obi ergänzt die ausführliche Prüfung…");
+      searches.replaceChildren();
+      box.innerHTML = '<span class="thinking">Obi schreibt die komplette Bewertung</span>';
+      try { await once(); status(""); }
+      catch {
+        // Neuversuch fehlgeschlagen oder gestoppt: die erste Antwort bleibt stehen.
+        state.turns.splice(-2); text = firstText; truncated = false; status("");
+      }
+    }
+    render(box, text);
+    state.turns.push({ role: "assistant", content: text });
+    if (first && /gruen|gelb|rot|grau/.test($("#verdict").className)) addBeratung(el);
+    status(truncated ? "Die Antwort wurde abgeschnitten. Frag nach dem fehlenden Teil." : "", truncated);
+  } catch (e) {
+    const cancelled = e?.name === "AbortError";
+    state.turns.pop();
+    if (text.trim()) render(box, text + (cancelled ? "" : "\n\n*(unterbrochen)*")); else el.remove();
+    if (!cancelled) status(ERR[e?.code] || "Verbindung unterbrochen. Versuch es nochmal.", true);
+    if (first && !state.turns.length) state.payload = null;
+  } finally {
+    state.busy = false; state.ctl = null; $("#stop").hidden = true;
+    const ready = !!state.payload && state.turns.length > 0;
+    $("#ask").disabled = !ready; $("#send").disabled = !ready;
+    refresh();
+  }
+}
+
+$("#go").onclick = async () => {
+  $("#go").disabled = true; status("Unterlagen werden vorbereitet…");
+  // PDFs gehen als Ganzes an Claude (liest Tabellen-Layout und Bilder mit). Vercel nimmt max. 4,5 MB pro Anfrage,
+  // deshalb höchstens ca. 3 MB Base64 für PDFs; was nicht passt, geht wie bisher als ausgelesener Text.
+  let budget = 3_000_000;
+  const docs = [];
+  for (const d of state.docs) {
+    const o = { name: d.name, text: d.text };
+    d.asPdf = false;
+    if (d.file && Math.ceil(d.file.size / 3) * 4 <= budget) {
+      try { o.pdf = await toBase64(d.file); budget -= o.pdf.length; d.asPdf = true; } catch {}
+    }
+    docs.push(o);
+  }
+  const blobs = state.docs.filter(d => !d.asPdf).flatMap(d => d.images || []).slice(0, MAX_IMAGES);
+  let images = [];
+  try { images = await Promise.all(blobs.map(toJpeg)); }
+  catch { status("Ein Bild konnte nicht gelesen werden. Lade das Dokument als PDF hoch.", true); refresh(); return; }
+  if (state.docs.filter(d => !d.asPdf).flatMap(d => d.images || []).length > MAX_IMAGES) status(`Obi sieht nur die ersten ${MAX_IMAGES} Bilder.`);
+  else status("");
+  const avg = $("#avg").value.trim(), ms = $("#ms").value.trim();
+  let extra = $("#extra").value.trim();
+  if (avg || ms) extra = "# Vergleichswerte vom Nutzer\n"
+    + `- Ø Kaufpreis pro m² in der Lage: ${avg ? avg + " €/m²" : "nicht angegeben"}\n`
+    + `- Mietspiegel / ortsübliche Vergleichsmiete: ${ms ? ms + " €/m²" : "nicht angegeben"}\n`
+    + (extra ? "\n" + extra : "");
+  state.payload = { docs, extra, images };
+  state.turns = [];
+  $("#log").innerHTML = ""; $("#verdict").className = "verdict"; $("#verdict span").textContent = "Wird geprüft";
+  ask("Bitte prüfe jetzt das Objekt.", true);
+};
+$("#composer").onsubmit = e => {
+  e.preventDefault(); const t = $("#ask").value.trim(); if (!t) return;
+  $("#ask").value = ""; ask(t, false);
+};
+$("#ask").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("#composer").requestSubmit(); } });
+$("#stop").onclick = () => state.ctl?.abort();
+refresh();
+</script>
+
+</body></html>
