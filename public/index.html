@@ -574,6 +574,11 @@ const ERR = {
   payload: "Die Dateien sind zu groß für eine Anfrage. Lade weniger Fotos oder Seiten hoch.",
   empty: "Lade Unterlagen hoch oder beschreib das Angebot im Textfeld.",
   refused: "Claude hat diese Anfrage abgelehnt. Prüf, ob die Unterlagen wirklich ein Immobilienangebot sind, und versuch es nochmal.",
+  not_deployed: "Der Obi-Server wurde nicht gefunden. Die Seite läuft ohne den Ordner api/ (z. B. auf Netlify oder als einzelne HTML-Datei). Obi braucht das Vercel-Projekt.",
+  no_key: "Auf dem Server fehlt der ANTHROPIC_API_KEY. In Vercel unter Settings → Environment Variables eintragen und neu deployen.",
+  bad_key: "Der ANTHROPIC_API_KEY auf dem Server ist ungültig oder hat kein Guthaben. Key und Guthaben in der Claude Console prüfen.",
+  cut_off: "Die Verbindung zum Server ist abgebrochen, bevor Obi fertig war. Versuch es nochmal.",
+  upstream: "Obi konnte die Anfrage nicht bearbeiten.",
 };
 
 async function ask(userText, first) {
@@ -599,8 +604,9 @@ async function ask(userText, first) {
     });
     if (!r.ok) {
       const j = await r.json().catch(() => ({}));
-      throw { code: r.status === 413 ? "payload" : (j.error || "upstream") };
+      throw { code: r.status === 413 ? "payload" : r.status === 404 ? "not_deployed" : (j.error || "upstream"), detail: j.detail || `HTTP ${r.status}` };
     }
+    let done = false, errDetail = "";
     const reader = r.body.getReader(), dec = new TextDecoder();
     let buf = "";
     for (;;) {
@@ -617,12 +623,13 @@ async function ask(userText, first) {
           if (!text) box.innerHTML = '<span class="thinking">Obi recherchiert</span>';
         }
         else if (ev.t === "sources") renderSources(src, ev.list);
-        else if (ev.t === "done") truncated = !!ev.truncated;
-        else if (ev.t === "error") errCode = ev.code || "upstream";
+        else if (ev.t === "done") { done = true; truncated = !!ev.truncated; }
+        else if (ev.t === "error") { errCode = ev.code || "upstream"; errDetail = ev.detail || ""; }
       }
     }
-    if (errCode) throw { code: errCode };
-    if (!text.trim()) throw { code: "upstream" };
+    if (errCode) throw { code: errCode, detail: errDetail };
+    if (!done) throw { code: "cut_off" };
+    if (!text.trim()) throw { code: "upstream", detail: "leere Antwort" };
   };
 
   try {
@@ -648,7 +655,7 @@ async function ask(userText, first) {
     const cancelled = e?.name === "AbortError";
     state.turns.pop();
     if (text.trim()) render(box, text + (cancelled ? "" : "\n\n*(unterbrochen)*")); else el.remove();
-    if (!cancelled) status(ERR[e?.code] || "Verbindung unterbrochen. Versuch es nochmal.", true);
+    if (!cancelled) status((ERR[e?.code] || "Verbindung unterbrochen. Versuch es nochmal.") + (e?.detail ? ` (${e.detail})` : ""), true);
     if (first && !state.turns.length) state.payload = null;
   } finally {
     state.busy = false; state.ctl = null; $("#stop").hidden = true;
